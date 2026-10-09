@@ -16,7 +16,7 @@ if(ENABLE_SANITIZERS)
     add_link_options(-fsanitize=address,undefined,leak)
 endif()
 
-add_executable(feedhandler src/main.cpp src/listener/service.cpp)
+add_executable(feedhandler src/main.cpp src/listener/service.cpp src/orderbook/service.hpp)
 
 target_include_directories(feedhandler PRIVATE src)
 target_link_libraries(feedhandler PRIVATE OpenSSL::SSL OpenSSL::Crypto)

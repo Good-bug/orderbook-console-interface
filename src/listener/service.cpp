@@ -2,15 +2,17 @@
 
 #include <openssl/ssl.h>
 
+#include <algorithm>
 #include <chrono>
 #include <format>
+#include <glaze/glaze.hpp>
 #include <iostream>
 #include <stdexcept>
 #include <utility>
-#include <glaze/glaze.hpp>
 
 #include "protocol/binance.dto.hpp"
 
+namespace ob::binance::observer {
 BinanceListenerService::BinanceListenerService(
     std::string host, std::string port,
     std::unordered_map<std::string, unsigned int> target)
@@ -21,8 +23,9 @@ BinanceListenerService::BinanceListenerService(
     target_path = build_target_path();
 }
 
-BinanceListenerService::BinanceListenerService(
-    std::string host, std::string port, std::string target_path)
+BinanceListenerService::BinanceListenerService(std::string host,
+                                               std::string port,
+                                               std::string target_path)
     : host(std::move(host)),
       port(std::move(port)),
       target_path(std::move(target_path)),
@@ -60,7 +63,8 @@ void BinanceListenerService::init() {
     beast::get_lowest_layer(*ws).connect(endpoints);
 
     // TLS (SNI + hostname verification)
-    if (!SSL_set_tlsext_host_name(ws->next_layer().native_handle(), host.c_str())) {
+    if (!SSL_set_tlsext_host_name(ws->next_layer().native_handle(),
+                                  host.c_str())) {
         throw beast::system_error{
             beast::error_code{static_cast<int>(::ERR_get_error()),
                               net::error::get_ssl_category()}};
@@ -69,14 +73,16 @@ void BinanceListenerService::init() {
     ws->next_layer().handshake(ssl::stream_base::client);
 
     // WebSocket handshake
-    const std::string path = target_path.empty() ? build_target_path() : target_path;
+    const std::string path =
+        target_path.empty() ? build_target_path() : target_path;
     ws->handshake(host + ":" + port, path);
     std::cout << "connected: " << host << ":" << port << path << '\n';
 }
 
 void BinanceListenerService::snifer() {
     if (!ws) {
-        throw std::runtime_error("WebSocket is not initialized. Call init() first.");
+        throw std::runtime_error(
+            "WebSocket is not initialized. Call init() first.");
     }
 
     constexpr glz::opts opts{.error_on_unknown_keys = false};
@@ -100,16 +106,12 @@ void BinanceListenerService::snifer() {
 
         auto update = ob::binance::dto::DepthUpdate{};
         if (const auto parse_ec = glz::read<opts>(update, msg)) {
-            std::cerr << "JSON parse error: " << glz::format_error(parse_ec, msg) << '\n';
+            std::cerr << "JSON parse error: "
+                      << glz::format_error(parse_ec, msg) << '\n';
             continue;
         }
 
-        std::cout << std::format("\"{}\"", update.symbol) << " U=" << update.first_update_id
-                  << " u=" << update.last_update_id
-                  << " bids=" << update.bids.size()
-                  << " asks=" << update.asks.size()
-                  << " bytes=" << msg.size()
-                  << " t=" << t_recv.time_since_epoch().count() << '\n';
+        notifyObservers(update);
     }
 }
 
@@ -124,3 +126,24 @@ void BinanceListenerService::stop() {
         ws->close(websocket::close_code::normal, ec);
     }
 }
+
+void BinanceListenerService::subscribe(DepthUpdateObserver* observer) {
+    if (observer) {
+        observers_.push_back(observer);
+    }
+}
+
+void BinanceListenerService::unsubscribe(DepthUpdateObserver* observer) {
+    auto it = std::ranges::remove(observers_, observer).begin();
+    observers_.erase(it, observers_.end());
+}
+
+void BinanceListenerService::notifyObservers(
+    const ob::binance::dto::DepthUpdate& update) {
+    for (auto* observer : observers_) {
+        if (observer) {
+            observer->onDepthUpdate(update);
+        }
+    }
+}
+};  // namespace ob::binance::observer

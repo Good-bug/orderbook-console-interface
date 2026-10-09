@@ -1,9 +1,8 @@
 #pragma once
 
-#include <glaze/glaze.hpp>
-
 #include <array>
 #include <cstdint>
+#include <glaze/glaze.hpp>
 #include <string>
 #include <vector>
 
@@ -28,13 +27,13 @@ struct SubscribeAck {
 
 // Diff depth stream
 struct DepthUpdate {
-    std::string event_type;        // "e"
-    std::int64_t event_time{};     // "E", мс
-    std::string symbol;            // "s"
+    std::string event_type;          // "e"
+    std::int64_t event_time{};       // "E", мс
+    std::string symbol;              // "s"
     std::int64_t first_update_id{};  // "U"
     std::int64_t last_update_id{};   // "u"
-    std::vector<Level> bids;       // "b"
-    std::vector<Level> asks;       // "a"
+    std::vector<Level> bids;         // "b"
+    std::vector<Level> asks;         // "a"
 };
 
 // REST-снапшот (понадобится на следующем шаге)
@@ -44,27 +43,21 @@ struct DepthSnapshot {
     std::vector<Level> asks;
 };
 
-}  // namespace bn
+}  // namespace ob::binance::dto
 
 // Маппинг читаемых имён полей на имена в JSON
 template <>
 struct glz::meta<ob::binance::dto::DepthUpdate> {
     using T = ob::binance::dto::DepthUpdate;
-    static constexpr auto value = object(
-        "e", &T::event_type,
-        "E", &T::event_time,
-        "s", &T::symbol,
-        "U", &T::first_update_id,
-        "u", &T::last_update_id,
-        "b", &T::bids,
-        "a", &T::asks);
+    static constexpr auto value =
+        object("e", &T::event_type, "E", &T::event_time, "s", &T::symbol, "U",
+               &T::first_update_id, "u", &T::last_update_id, "b", &T::bids, "a",
+               &T::asks);
 };
 
 template <>
 struct glz::meta<ob::binance::dto::DepthSnapshot> {
     using T = ob::binance::dto::DepthSnapshot;
-    static constexpr auto value = object(
-        "lastUpdateId", &T::last_update_id,
-        "bids", &T::bids,
-        "asks", &T::asks);
+    static constexpr auto value = object("lastUpdateId", &T::last_update_id,
+                                         "bids", &T::bids, "asks", &T::asks);
 };
