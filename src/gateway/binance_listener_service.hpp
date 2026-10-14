@@ -6,12 +6,12 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/beast/websocket/ssl.hpp>
-#include <cstdint>
+
 #include <optional>
 #include <string>
 #include <unordered_map>
 
-#include "protocol/binance.dto.hpp"
+#include "protocol/binance_dto.hpp"
 
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
@@ -19,10 +19,10 @@ namespace net = boost::asio;
 namespace ssl = net::ssl;
 using tcp = net::ip::tcp;
 
-namespace ob::binance::observer {
+namespace ob::observer {
 struct DepthUpdateObserver {
     virtual ~DepthUpdateObserver() = default;
-    virtual void onDepthUpdate(const ob::binance::dto::DepthUpdate& update) = 0;
+    virtual void onDepthUpdate(const dto::DepthUpdateDto& update) = 0;
 };
 
 class BinanceListenerService {
@@ -43,7 +43,7 @@ class BinanceListenerService {
     void unsubscribe(DepthUpdateObserver* observer);
 
    private:
-    void notifyObservers(const ob::binance::dto::DepthUpdate& update);
+    void notifyObservers(const dto::DepthUpdateDto& update);
 
     std::vector<DepthUpdateObserver*> observers_;
     std::string build_target_path() const;
@@ -58,4 +58,4 @@ class BinanceListenerService {
     ssl::context ctx{ssl::context::tls_client};
     std::optional<websocket::stream<beast::ssl_stream<beast::tcp_stream>>> ws;
 };
-};  // namespace ob::binance::observer
+};  // namespace ob::observer

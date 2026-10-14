@@ -13,10 +13,10 @@
 #include <thread>
 #include <utility>
 
-#include "../listener/service.h"
-#include "protocol/binance.dto.hpp"
+#include "../gateway/binance_listener_service.hpp"
+#include "protocol/binance_dto.hpp"
 
-namespace ob::binance::writer {
+namespace ob::writer {
 
 namespace detail {
 /**
@@ -55,7 +55,7 @@ inline std::filesystem::path resolve_output_path(
  */
 class AsyncDepthUpdateCsvWriter : public observer::DepthUpdateObserver {
    public:
-    using CsvFormatter = std::function<std::string(const dto::DepthUpdate&)>;
+    using CsvFormatter = std::function<std::string(const dto::DepthUpdateDto&)>;
 
     /**
      * @brief Opens the destination file in append mode and starts the writer
@@ -69,7 +69,7 @@ class AsyncDepthUpdateCsvWriter : public observer::DepthUpdateObserver {
      */
     AsyncDepthUpdateCsvWriter(const std::string& filepath,
                               CsvFormatter formatter)
-        : filepath_(detail::resolve_output_path(filepath)),
+        : filepath_(filepath),
           output_(filepath_, std::ios::out | std::ios::app),
           formatter_(std::move(formatter)) {
         if (!output_) {
@@ -113,7 +113,7 @@ class AsyncDepthUpdateCsvWriter : public observer::DepthUpdateObserver {
         }
     }
 
-    void onDepthUpdate(const dto::DepthUpdate& update) override {
+    void onDepthUpdate(const dto::DepthUpdateDto& update) override {
         write(update);
     }
 
@@ -126,7 +126,7 @@ class AsyncDepthUpdateCsvWriter : public observer::DepthUpdateObserver {
      * @param update Depth update to serialize.
      * @throws std::runtime_error if the writer is closed.
      */
-    void write(const dto::DepthUpdate& update) {
+    void write(const dto::DepthUpdateDto& update) {
         // Format outside the lock so custom formatting does not block queue
         // use.
         std::string row = formatter_(update);

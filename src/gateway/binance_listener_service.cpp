@@ -1,4 +1,4 @@
-#include "service.h"
+#include "binance_listener_service.hpp"
 
 #include <openssl/ssl.h>
 
@@ -10,9 +10,9 @@
 #include <stdexcept>
 #include <utility>
 
-#include "protocol/binance.dto.hpp"
+#include "protocol/binance_dto.hpp"
 
-namespace ob::binance::observer {
+namespace ob::observer {
 BinanceListenerService::BinanceListenerService(
     std::string host, std::string port,
     std::unordered_map<std::string, unsigned int> target)
@@ -100,11 +100,10 @@ void BinanceListenerService::snifer() {
             break;
         }
 
-        const auto t_recv = std::chrono::steady_clock::now();
         auto msg = beast::buffers_to_string(buf.data());
         buf.consume(buf.size());
 
-        auto update = ob::binance::dto::DepthUpdate{};
+        auto update = ob::dto::DepthUpdateDto{};
         if (const auto parse_ec = glz::read<opts>(update, msg)) {
             std::cerr << "JSON parse error: "
                       << glz::format_error(parse_ec, msg) << '\n';
@@ -139,11 +138,11 @@ void BinanceListenerService::unsubscribe(DepthUpdateObserver* observer) {
 }
 
 void BinanceListenerService::notifyObservers(
-    const ob::binance::dto::DepthUpdate& update) {
+    const dto::DepthUpdateDto& update) {
     for (auto* observer : observers_) {
         if (observer) {
             observer->onDepthUpdate(update);
         }
     }
 }
-};  // namespace ob::binance::observer
+};  // namespace ob::observer
