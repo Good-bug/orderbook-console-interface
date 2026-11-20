@@ -1,12 +1,12 @@
 # --- Build outputs ---
 /build/
-/cmake-build-*/          # дефолтные каталоги CLion, если профиль создан не из пресета
+/cmake-build-*/          # Default CLion build directories when no preset is used
 /out/
 /vcpkg_installed/        # vcpkg manifest mode
 
-# --- Личные настройки CMake ---
-# CMakeUserPresets.json по задумке CMake не коммитится.
-# CMakePresets.json остаётся в репозитории.
+# --- Local CMake settings ---
+# CMakeUserPresets.json is not intended to be committed.
+# CMakePresets.json remains in the repository.
 /CMakeUserPresets.json
 
 # --- CLion / JetBrains ---
@@ -15,21 +15,25 @@
 *.iws
 /.vscode
 
-# --- clangd / индексы / compile_commands ---
+# --- clangd / indexes / compile_commands ---
 /.cache/
 /.clangd/
 /compile_commands.json
 
-# --- Профилирование и дампы ---
+# --- Profiling and dumps ---
 perf.data
 perf.data.*
 *.perf
-core.[0-9]*              # не core.*, чтобы не поймать src/core.cpp
+core.[0-9]*              # Avoid core.* to prevent matching src/core.cpp
 
-# --- Результаты бенчмарков, которые не являются артефактами проекта ---
+# --- Benchmark results that are not project artifacts ---
 /bench-out/
 
-# --- ОС / редакторы ---
+# --- OS / editors ---
 .DS_Store
 *.swp
 *~
+
+# --- Data dumps ---
+*.csv
+*.log

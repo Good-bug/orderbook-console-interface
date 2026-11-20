@@ -1,38 +1,39 @@
 #include <version>
-
-#include "rest/binance_rest_depth_client.hpp"
-
+#include "protocol/binance_convert.hpp"
 
 #if !defined(__cpp_lib_expected) || __cpp_lib_expected < 202202L
 #error \
-    "std::expected недоступен: нужен GCC 12+/Clang 16+ (с подходящей stdlib)/MSVC 19.33+ и -std=c++23"
+    "std::expected is unavailable: GCC 12+, Clang 16+ (with a compatible standard library), or MSVC 19.33+ and -std=c++23 are required"
 #endif
 
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <format>
+#include <ftxui/component/component.hpp>
+#include <ftxui/component/event.hpp>
+#include <ftxui/component/screen_interactive.hpp>
 #include <iostream>
 #include <string>
 #include <unordered_map>
 
 #include "gateway/binance_listener_service.hpp"
-#include "protocol/binance_dto.hpp"
-#include "protocol/binance_convert.hpp"
+#include "orderbook/books/naive_book.hpp"
+#include "orderbook/order_book.hpp"
+#include "utils/ui/tui.hpp"
 #include "writer/filewriter.hpp"
-
 
 using namespace ob;
 
 namespace {
-std::string formatDepthUpdateCsvRow(const dto::DepthUpdateDto& update) {
+std::string formatDepthUpdateCsvRow(const domain::DepthUpdate& update) {
     std::string bids;
     for (const auto& level : update.bids) {
         if (!bids.empty()) {
             bids += ';';
         }
-        bids +=
-            std::format("{},{}", level[0],
-                        level[1]);
+        bids += std::format("{},{}",
+                            ob::convert::format_fixed_int124(level.price.value),
+                            ob::convert::format_fixed_int124(level.qty.value));
     }
 
     std::string asks;
@@ -40,48 +41,40 @@ std::string formatDepthUpdateCsvRow(const dto::DepthUpdateDto& update) {
         if (!asks.empty()) {
             asks += ';';
         }
-        asks +=
-            std::format("{},{}", level[0],
-                        level[1]);
+        asks += std::format("{},{}",
+                            ob::convert::format_fixed_int124(level.price.value),
+                            ob::convert::format_fixed_int124(level.qty.value));
     }
 
-    return std::format("{},{},{},{},{},{}", update.symbol,
-                       update.first_update_id, update.last_update_id,
-                       update.event_time, bids, asks);
+    return std::format(
+        "{},{},{},{},{},{}", update.symbol, update.first_update_id.value,
+        update.last_update_id.value, update.event_time_ms, bids, asks);
 }
 }  // namespace
 
+
 int main() {
-    const std::string host = "stream.binance.com";
-    const std::string port = "9443";
-    std::unordered_map<std::string, unsigned int> target{{"btcusdt", 100}};
+    ob::writer::AsyncDepthUpdateCsvWriter csv{"depth_updates.csv", formatDepthUpdateCsvRow};
+    ob::orderbook::OrderBook<ob::orderbook::NaiveBook> book;
 
-    ob::writer::AsyncDepthUpdateCsvWriter csv_writer{"depth_updates.csv",
-                                                     formatDepthUpdateCsvRow};
+    ob::observer::BinanceListenerService service{
+        "stream.binance.com", "9443", {{"btcusdt", 100}}};
+    service.subscribe(&csv);
+    service.subscribe(&book);
+    book.start();
 
-    ob::rest::BinanceRestDepthClient rest_client{};
-    [[maybe_unused]] const auto snapshot =
-        rest_client.fetch_snapshot("btcusdt", 100);
-    // std::cout << "Fetched depth snapshot for symbol: " <<
-    // glz::write_json(snapshot)->c_str() << '\n';
+    utils::ui::OrderBookApp app([&] { return book.view(); }, /*depth=*/10);
 
-    try {
-        ob::observer::BinanceListenerService service{host, port,
-                                                     std::move(target)};
+    utils::ui::BackgroundTask net(
+        [&] { service.run(); },     // Network thread
+        [&] { service.stop(); },    // Stop the service
+        [&] { app.quit(); });       // Close the UI when the connection ends
 
-        service.subscribe(&csv_writer);
+    app.run();                      // Blocks until q/Esc is pressed or the connection closes
+    net.stop_and_join();
 
-        service.init();
-        service.snifer();
-    } catch (const boost::beast::system_error& se) {
-        if (se.code() == boost::beast::websocket::error::closed) {
-            std::cout << "connection closed cleanly\n";
-            return 0;
-        }
-        std::cerr << "system error: " << se.code().message() << '\n';
-        return 1;
-    } catch (const std::exception& e) {
-        std::cerr << "error: " << e.what() << '\n';
+    if (net.error()) {
+        std::cerr << *net.error() << '\n';
         return 1;
     }
 }

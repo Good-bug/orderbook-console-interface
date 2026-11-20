@@ -1,15 +1,19 @@
 cmake_minimum_required(VERSION 3.25)
-project(feedhandler LANGUAGES CXX)
+project(orderbook LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(OpenSSL REQUIRED)
-find_package(quill CONFIG REQUIRED)
+# To pin g++-14 in CMakeLists (optional; using a toolchain or presets is preferred)
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.0)
+    message(WARNING "GCC 14 or newer is recommended for full C++23 support (std::expected, std::println).")
+endif()
 
-# Опция для включения санитайзеров
+find_package(ftxui CONFIG REQUIRED)
+
+# Option to enable sanitizers
 option(ENABLE_SANITIZERS "Enable Address and Undefined Behavior Sanitizers" OFF)
 
 if(ENABLE_SANITIZERS)
@@ -17,23 +21,19 @@ if(ENABLE_SANITIZERS)
     add_link_options(-fsanitize=address,undefined,leak)
 endif()
 
-add_executable(feedhandler
+enable_testing()
+
+add_subdirectory(lib)
+
+add_executable(orderbook
     src/main.cpp
-    src/gateway/binance_listener_service.cpp
-    src/writer/filewriter.hpp
-    src/orderbook/order_book.hpp
 )
 
-target_include_directories(feedhandler PRIVATE src)
-target_link_libraries(feedhandler PRIVATE OpenSSL::SSL OpenSSL::Crypto quill::quill)
-target_compile_options(feedhandler PRIVATE -Wall -Wextra -Wpedantic)
-
-add_library(domain INTERFACE)
-target_include_directories(domain INTERFACE src)
-
-enable_testing()
-find_package(Catch2 CONFIG REQUIRED)
-add_executable(binance_convert_test tests/binance_convert_test.cpp)
-target_link_libraries(binance_convert_test PRIVATE domain Catch2::Catch2WithMain)
-target_compile_options(binance_convert_test PRIVATE -Wall -Wextra -Wpedantic)
-add_test(NAME binance_convert_test COMMAND binance_convert_test)
+target_include_directories(orderbook PRIVATE src)
+target_link_libraries(orderbook PRIVATE
+    orderbook::lib
+    ftxui::screen
+    ftxui::dom
+    ftxui::component
+)
+target_compile_options(orderbook PRIVATE -Wall -Wextra -Wpedantic)
